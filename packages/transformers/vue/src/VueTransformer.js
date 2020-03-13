@@ -68,12 +68,12 @@ export default new Transformer({
         scopeId,
       },
     });
-    failOnError(sfcDesc);
+    failOnError(sfcDesc, logger);
 
-    console.warn(
-      sfcDesc.customBlocks.map(
-        customBlock => `Unknown block found: "${customBlock.type}"`,
-      ),
+    logger.warn(
+      sfcDesc.customBlocks.map(customBlock => {
+        return {message: `Unknown block found: "${customBlock.type}"`};
+      }),
     );
 
     let blocks = [];
@@ -81,7 +81,7 @@ export default new Transformer({
     // TODO: production???
 
     if (sfcDesc.script !== null) {
-      logger.log({message: 'Found script'});
+      //logger.log({message: 'Found script'});
       // TODO: ? script.content is the js
       // Maybe same block as template???
       blocks.push({
@@ -92,7 +92,7 @@ export default new Transformer({
     }
     if (sfcDesc.template !== null) {
       // TODO: functional???
-      logger.log({message: 'Found template'});
+      //logger.log({message: 'Found template'});
 
       const isFunctional = sfcDesc.template.attrs.functional || false;
       const template = compileTemplate({
@@ -101,7 +101,7 @@ export default new Transformer({
         isFunctional: isFunctional,
         ...parseOpts,
       });
-      failOnError(template);
+      failOnError(template, logger);
 
       blocks.push({
         type: 'js',
@@ -127,36 +127,39 @@ Object.assign($${id}, (function () {
     }
     for (const style of sfcDesc.styles) {
       // TODO: CSS modules???
-      logger.log({message: 'Found style'});
+      //logger.log({message: 'Found style'});
 
       if (style.scoped) {
         // Should "compile" also non scoped?
-        logger.log({message: 'Scoped style'});
+        //logger.log({message: 'Scoped style'});
 
         const compiledStyle = compileStyle({
           source: style.content,
           preprocessLang: style.lang || 'css', // Only css? use other preprocs?
           // Compile stylesheet in post to allow any preproc (should use AST and generate...)
+          // WARNING: if lang is not known in Vue it is treated as css without errors
           scoped: style.scoped || false, // Alwais true in this case...
           id: scopeId,
           ...parseOpts,
         });
-        failOnError(compiledStyle);
+        failOnError(compiledStyle, logger);
 
         blocks.push({
           type: 'css', // Already processed by vue
           code: compiledStyle.code,
+          map: compiledStyle.map,
         });
       } else {
         blocks.push({
           type: style.lang || 'css',
           code: style.content,
+          map: style.map,
         });
       }
     }
     // TODO: HMR???
 
-    logger.log({message: 'Result: ' + JSON.stringify(blocks)});
+    //logger.log({message: 'Result: ' + JSON.stringify(blocks)});
 
     return blocks;
   },
@@ -165,15 +168,24 @@ Object.assign($${id}, (function () {
     // Merge js assets in same module
     const results = [];
     let js = '';
-    let map = new SourceMap();
+    const map = new SourceMap();
     let deps = [];
     for (const asset of assets) {
       if (asset.type !== 'js') {
-        results.push(asset);
+        results.push({
+          // Like dependency? need copy?
+          type: asset.type,
+          code: await asset.getCode(),
+          map: await asset.getMap(),
+        });
       } else {
         const baseColumn = js.length;
         js += await asset.getCode();
-        map.addMap(await asset.getMap(), 0, baseColumn);
+        const cmap = await asset.getMap();
+        if (cmap) {
+          //logger.error({ message: JSON.stringify(cmap) });
+          map.addMap(cmap, 0, baseColumn);
+        }
         for (const dep of asset.getDependencies()) {
           deps.push({
             // Dependency is not populated unless copied?
@@ -192,15 +204,14 @@ Object.assign($${id}, (function () {
         }
       }
     }
-    logger.warn({message: JSON.stringify(deps)});
-    return [
-      {
-        type: 'js',
-        code: js,
-        map: map,
-        dependencies: deps,
-      },
-      ...results,
-    ];
+    //logger.warn({message: JSON.stringify(deps)});
+    results.push({
+      type: 'js',
+      code: js,
+      map: map,
+      dependencies: deps,
+    });
+    //logger.error({ message: JSON.stringify(results) });
+    return results;
   },
 });
