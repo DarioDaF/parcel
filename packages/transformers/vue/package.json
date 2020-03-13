@@ -1,0 +1,21 @@
+{
+  "name": "@parcel/transformer-vue",
+  "version": "1.0.0",
+  "main": "lib/VueTransformer.js",
+  "license": "MIT",
+  "source": "src/VueTransformer.js",
+  "private": true,
+  "engines": {
+    "node": ">= 10.0.0",
+    "parcel": "^2.0.0-alpha.1.1"
+  },
+  "dependencies": {
+    "@parcel/plugin": "^2.0.0-alpha.3",
+    "@parcel/source-map": "^2.0.0-alpha.3",
+    "@parcel/utils": "^2.0.0-alpha.3",
+    "@vue/component-compiler-utils": "^3.1.1"
+  },
+  "peerDependencies": {
+    "vue-template-compiler": "^2.5.16"
+  }
+}
